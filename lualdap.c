@@ -225,7 +225,7 @@ static BerValue *A_setbval(lua_State *L, attrs_data *a, const char *n)
 		value_error(L, n);
 		return NULL;
 	}
-	a->bvals[a->bi].bv_len = lua_strlen(L, -1);
+	a->bvals[a->bi].bv_len = lua_rawlen(L, -1);
 	a->bvals[a->bi].bv_val = (char *)lua_tostring(L, -1);
 	a->bi++;
 	return ret;
@@ -281,7 +281,7 @@ static BerValue **A_tab2val(lua_State *L, attrs_data *a, const char *name)
 		A_setval(L, a, name);
 	else if (lua_istable(L, tab)) { /* list of strings */
 		int i;
-		int n = luaL_getn(L, tab);
+		int n = lua_rawlen(L, tab);
 
 		for (i = 1; i <= n; i++) {
 			lua_rawgeti(L, tab, i); /* push table element */
@@ -358,7 +358,7 @@ static int table2strarray(lua_State *L, int tab, char *array[], int limit)
 		array[1] = NULL;
 	} else if (lua_istable(L, tab)) {
 		int i;
-		int n = luaL_getn(L, tab);
+		int n = lua_rawlen(L, tab);
 
 		if (limit < (n+1))
 			return luaL_error(L, LUALDAP_PREFIX "too many arguments");
@@ -415,7 +415,7 @@ static int result_message(lua_State *L)
 		default:
 			lua_pushnil(L);
 			lua_pushliteral(L, LUALDAP_PREFIX);
-			lua_pushstring(L, msg);
+			lua_pushstring(L, msg ? msg : "");
 			lua_pushliteral(L, " ");
 			lua_pushstring(L, ldap_err2string(err));
 			lua_concat(L, 4);
@@ -499,7 +499,7 @@ static int lualdap_compare(lua_State *L)
 	BerValue bvalue;
 	int rc, msgid;
 	bvalue.bv_val = (char *)luaL_checkstring(L, 4);
-	bvalue.bv_len = lua_strlen(L, 4);
+	bvalue.bv_len = lua_rawlen(L, 4);
 	rc = ldap_compare_ext(conn->ld, dn, attr, &bvalue, NULL, NULL, &msgid);
 	return create_future(L, rc, 1, msgid, LDAP_RES_COMPARE);
 }
@@ -876,7 +876,7 @@ static int lualdap_search_tostring(lua_State *L)
 */
 static int lualdap_createmeta(lua_State *L)
 {
-	const luaL_reg methods[] = {
+	const luaL_Reg methods[] = {
 		{"close", lualdap_close},
 		{"add", lualdap_add},
 		{"compare", lualdap_compare},
@@ -891,7 +891,7 @@ static int lualdap_createmeta(lua_State *L)
 		return 0;
 
 	/* define methods */
-	luaL_register(L, NULL, methods);
+	luaL_setfuncs(L, methods, 0);
 
 	/* define metamethods */
 	lua_pushliteral(L, "__gc");
@@ -1043,13 +1043,14 @@ static void set_info(lua_State *L)
 */
 int luaopen_lualdap(lua_State *L)
 {
-	struct luaL_reg lualdap[] = {
+	struct luaL_Reg lualdap[] = {
 		{"open_simple", lualdap_open_simple},
 		{NULL, NULL},
 	};
 
 	lualdap_createmeta(L);
-	luaL_register(L, LUALDAP_TABLENAME, lualdap);
+	lua_newtable(L);
+	luaL_setfuncs(L, lualdap, 0);
 	set_info(L);
 
 	return 1;
